@@ -1,10 +1,13 @@
 import streamlit as st
 from ultralytics import YOLO
+from huggingface_hub import hf_hub_download
 from PIL import Image
 import numpy as np
 import cv2
 
 
+
+# Page Configuration
 
 
 st.set_page_config(
@@ -15,14 +18,22 @@ st.set_page_config(
 
 
 
+# Load YOLO Model
 
-model = YOLO("PPE _Complex_ Model .pt")
+
+model_path = hf_hub_download(
+    repo_id="abdollah111/ppe-detection-model",
+    filename="PPE _Complex_ Model .pt"
+)
+
+model = YOLO(model_path)
 
 
+
+# Session State
 
 
 if "required_ppe" not in st.session_state:
-
     st.session_state.required_ppe = {
         "helmet": False,
         "vest": False,
@@ -38,6 +49,13 @@ if "res" not in st.session_state:
 if "prediction_done" not in st.session_state:
     st.session_state.prediction_done = False
 
+
+if "uploaded_filename" not in st.session_state:
+    st.session_state.uploaded_filename = None
+
+
+
+# Title
 
 
 st.title("AI-Powered Personal Protective Equipment Detection")
@@ -68,6 +86,7 @@ required safety equipment is missing.
 st.divider()
 
 
+# Upload Image
 
 
 uploaded_file = st.file_uploader(
@@ -77,22 +96,20 @@ uploaded_file = st.file_uploader(
 )
 
 
-
 if uploaded_file is not None:
 
     st.success("✅ Uploaded Image Successfully")
 
-
-
     img = Image.open(uploaded_file)
 
 
+    
+    # Reset State for New Image
 
 
-    if st.session_state.get("uploaded_filename") != uploaded_file.name:
+    if st.session_state.uploaded_filename != uploaded_file.name:
 
         st.session_state.res = None
-
         st.session_state.prediction_done = False
 
         for ppe in st.session_state.required_ppe:
@@ -101,14 +118,14 @@ if uploaded_file is not None:
         st.session_state.uploaded_filename = uploaded_file.name
 
 
+   
+    # Prediction
+
 
     if st.button("🔍 Check up your image"):
 
-
         for ppe in st.session_state.required_ppe:
             st.session_state.required_ppe[ppe] = False
-
-
 
 
         image_bytes = uploaded_file.getvalue()
@@ -118,12 +135,11 @@ if uploaded_file is not None:
             np.uint8
         )
 
+
         image = cv2.imdecode(
             image_array,
             cv2.IMREAD_COLOR
         )
-
-
 
 
         result = model.predict(
@@ -133,22 +149,30 @@ if uploaded_file is not None:
         )[0]
 
 
+      
+        # Draw Predictions
+       
 
+        annotated_image = result.plot()
 
-        st.session_state.res = result.plot()
+        annotated_image = cv2.cvtColor(
+            annotated_image,
+            cv2.COLOR_BGR2RGB
+        )
+
+        st.session_state.res = annotated_image
 
         st.session_state.prediction_done = True
 
 
-
+        # Check PPE Classes
+     
 
         for cls_id in result.boxes.cls:
 
             cls_id = int(cls_id)
 
             cls = result.names[cls_id]
-
-
 
 
             if cls in st.session_state.required_ppe:
@@ -159,17 +183,18 @@ if uploaded_file is not None:
         st.success("✅ Prediction completed successfully!")
 
 
+# Display Results
 
 
 if uploaded_file is not None:
 
     st.divider()
 
-
     col1, col2 = st.columns(2)
 
 
-
+    # Original Image
+  
 
     with col1:
 
@@ -182,16 +207,18 @@ if uploaded_file is not None:
 
 
 
+    # Predicted Image
+   
 
     with col2:
 
         st.info("🔍 Predicted Image")
 
+
         if st.session_state.res is not None:
 
             st.image(
                 st.session_state.res,
-                channels="BGR",
                 use_container_width=True
             )
 
@@ -200,6 +227,3 @@ if uploaded_file is not None:
             st.warning(
                 "Click 'Check up your image' to run prediction."
             )
-
-
-
